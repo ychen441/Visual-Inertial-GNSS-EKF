@@ -1,12 +1,5 @@
 """
-This is an extended Kalman filter for the sensor fusion of agri-vehicle navigation. The system currently includes
-a 6-DoF (3-axis accel & gyro) IMU (BMI055/085 in Intel D455, Bosch) a RTK-GNSS (AMG-PFZ202, NongXin), and the final
-version of it will be applied to a visual-inertial-GNSS multi-sensor system.
-
 Update date: 23th Mar, 2023
-Log: A new model for estimates is built. I tried to connect the filter
-     with hardware using pynmea2 and pyrealsense2, but there are still
-     some logical issues remaining. Gonna check them later today or tomorrow.
 """
 
 import math
