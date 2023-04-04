@@ -2,17 +2,20 @@
 time conversion, a longitude-latitude-to-meter distance 
 conversion for now.
 
-Update date: 03/04/23 by ychen441
+Geo-conversion formulas ref Chris Veness:
+https://www.movable-type.co.uk/scripts/latlong.html
+
+Update date: 04/04/23 by ychen441
 """
 
 import numpy as np
 from datetime import time as dtime
 
+earth_radius = 6317000  # in metres
+
 
 class helpers:
-    """funcs that may help in temporal sync
-    """
-
+    """Helper functions for geo-conversions, temporal synchronisation, etc."""
     def __init__(self) -> None:
         pass
 
@@ -34,64 +37,104 @@ class helpers:
         t_crt = dtime(t_crt_h, t_crt_m, t_crt_s, t_crt_mius)
         return t_crt
 
-
-def Body2World(self, x_body_curr, y_body_curr, x_world_pst, y_world_pst,
-               theta_curr):
-    """Convert body coordinate to world coordinate. Kinetic states like 
-        distance are then able to be calculated under an uniform frame.
-
+    def GeoDist(self, lon_past, lat_past, lon_curr, lat_curr):
+        """Use longitude and latitude to calculate distance in METRES, 
+        based on Haversine formula.
+     
         Args:
-          x_body_curr: x-axis position, time t
-          y_body_curr: y-axis position, time t
-          x_world_pst: x-axis position, time t-1
-          y_world_pst: y-axis position, time t-1
-          theta_curr: yaw angle, y-axis (body) vs x-axis (world), time t
+        lon_past: body's longitude, last instance
+        lat_past: body's latitude, last instance
+        lon_curr: body's longitude, current instance
+        lat_curr: body's latitude, current instance
+     
+        Return:
+        Distance d from the last to the current instance, in METRES.
+        """
+        lon1 = lon_past * np.pi / 180
+        lat1 = lat_past * np.pi / 180
+        lon2 = lon_curr * np.pi / 180
+        lat2 = lat_curr * np.pi / 180
+
+        deltaLon = lon2 - lon1
+        deltaLat = lat2 - lat1
+        a = np.power(np.sin(deltaLat / 2),
+                     2) + np.cos(lat1) * np.cos(lat2) * np.power(
+                         np.sin(deltaLon / 2), 2)
+        c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+        d = earth_radius * c
+
+        return d
+
+    def Lon2Cartesian(self, lon):
+        """Convert a geographical point on earth's surface to a coordinate 
+        in Cartesian system where y-axis represents longtitude in METRES.
+        
+        Arg:
+        lon: longitude of the geo-point
+        
+        Return:
+        lonMtrs: longitude represented in Cartesian coordinate
+        """
+        lonMtrs = self.GeoDist(0, 0, lon, 0)
+        if (lonMtrs < 0):
+            lonMtrs *= -1
+
+        return lonMtrs
+    
+    def Lat2Cartesian(self, lat):
+        """Convert the latitude of a geo-point on earth's surface to Cartesian 
+        coordinate where x-axis represents latitude in METRES.
+        
+        Arg:
+        lat: latitude of the geo-point
+
+        Return:
+        latMtrs: latitude represented in Cartesian coordinate
+        """
+        latMtrs = self.GeoDist(0, 0, 0, lat)
+        if (latMtrs < 0):
+            latMtrs *= -1
+
+        return latMtrs
+
+    def Cartesian2Geo(self, lonMtrs, latMtrs):
+        """Convert the Cartesian location in metres back to geopraphical 
+        representation in longitude and latitude.
+        
+        Args:
+        lonMtrs: longitude in Cartesian system
+        latMtrs: latitude in Cartesian system
 
         Returns:
-          2D position x and y in world frame
-
-        Raises:
-          Possibly introduce bias to this function after test since the real 
-          vehicle is not a mass point on paper.
+        lon = geographical longitude
+        lat = geographical latitude
         """
-    r = np.sqrt(x_body_curr**2 +
-                y_body_curr**2)  # Distance between positions at time t and t+1
-    phi = theta_curr + np.arctan2(x_body_curr,
-                                  y_body_curr)  # Yaw in world frame
+        # Set the origin as starting point
+        lon_start = 0
+        lat_start = 0
+        azimuth_lon = 90 * np.pi / 180
+        angularDist_lon = lonMtrs / earth_radius
+        # Compute temporary geo-location by moving it horizontally.
+        lat_temp = np.arcsin(
+            np.sin(lat_start) * np.cos(angularDist_lon) +
+            np.cos(lat_start) * np.sin(angularDist_lon) * np.cos(azimuth_lon))
+        lon_temp = lon_start + np.arctan2(
+            np.sin(azimuth_lon) * np.sin(angularDist_lon) * np.cos(lat_start),
+            np.cos(angularDist_lon) - np.sin(lat_start) * np.sin(lat_temp))
+        # Normalise the longitude to -180 to +180
+        lon_temp = np.remainder(lon_temp + 3 * np.pi, 2 * np.pi) - np.pi
 
-    # x and y-axis position of the vehicle in world frame
-    x_world_curr = x_world_pst + r * np.cos(phi)
-    y_world_curr = y_world_pst + r * np.sin(phi)
+        # Compute final geo-location by moving temp location vertically.
+        azimuth_lat = 0
+        lon_temp = lon_temp * np.pi / 180
+        lat_temp = lat_temp * np.pi / 180
+        angularDist_lat = latMtrs / earth_radius
+        lat = np.arcsin(
+            np.sin(lat_temp) * np.cos(angularDist_lat) +
+            np.cos(lat_temp) * np.sin(angularDist_lat) * np.cos(azimuth_lat))
+        lon_unnorm = lon_temp + np.arctan2(
+            np.sin(azimuth_lat) * np.sin(angularDist_lat) * np.cos(lat_temp),
+            np.cos(angularDist_lat) - np.sin(lat_temp) * np.sin(lat))
+        lon = np.remainder(lon_unnorm + 3 * np.pi, 2 * np.pi) - np.pi
 
-    return x_world_curr, y_world_curr
-
-
-def Geo2Mtrs(self, lon_past, lat_past, lon_curr, lat_curr):
-    """Use longitude and latitude to calculate distance between the last and the 
-     current instance, based on Haversine formula.
-     
-     Args:
-     lon_past: body's longitude, time t-1
-     lat_past: body's latitude, time t-1
-     lon_curr: body's longitude, time t
-     lat_curr: body's latitude, time t
-     
-     Return:
-     Distance d between time t-1 and t
-     """
-    earth_radius = 6317000  # in metres
-    # Longitude/latitude degree-to-radius conversion
-    lon1 = lon_past * np.pi / 180
-    lat1 = lat_past * np.pi / 180
-    lon2 = lon_curr * np.pi / 180
-    lat2 = lat_curr * np.pi / 180
-
-    deltaLon = lon2 - lon1
-    deltaLat = lat2 - lat1
-    a = np.power(
-        np.sin(deltaLat / 2),
-        2) + np.cos(lat1) * np.cos(lat2) * np.power(np.sin(deltaLon / 2), 2)
-    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
-    d = earth_radius * c
-
-    return d
+        return lon, lat
