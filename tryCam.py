@@ -1,24 +1,17 @@
-"""A class for calling camera to acquire and return camera and IMU data.
+"""Cam funcs for setting configs and running Intel D455.
 
-Many appreciates to Ed for his visual-inertial config and streaming methods using Python in:
+Many appreciates to Ed for his config and streaming methods using Python in:
 https://github.com/autorope/donkeycar/blob/5e234c3101cc5f54935c240819e3840596c753a3/donkeycar/parts/realsense435i.py#L122
 Functions are mainly built on the original code written by him. I have modified some parameters 
 for our test use (Intel D455) and currently disabled depth-mode of the camera.
 
-Usage example will be added after self test.
-
-Update date: 29/03/23 by ychen441
+Update date: 10/04/23 by ychen441
 """
 
-import cv2
 import time
 import logging
 import numpy as np
-import pyrealsense2 as rs2
-
-# Default frame resolution (Intel D455)
-Width = 1280
-Height = 800
+import pyrealsense2 as rs
 
 
 class rs2stream(object):
@@ -34,9 +27,6 @@ class rs2stream(object):
                  gyro_framerate,
                  enable_rgb=True,
                  enable_imu=True):
-        """Default frame resolution is 1280*800, any manual frame-Res settings will be resized by cv2 in 
-        function get_rgb(). RGB camera and IMU are both enabled by default.
-        """
         # Switches init
         self.enable_imu = enable_imu
         self.enable_rgb = enable_rgb
@@ -54,34 +44,28 @@ class rs2stream(object):
         self.t_init = time.time()
         self.t_frame = self.t_init
 
-        # Image resize
-        self.resize = (frame_width != Width) or (frame_height != Height)
-        self.frame_width = frame_width
-        self.frame_height = frame_height
         """Set IMU config and start streaming it."""
         self.imu_pipeline = None
         if self.enable_imu:
-            self.imu_pipeline = rs2.pipeline()
-            imu_config = rs2.config
-            # Accel config
-            imu_config.enable_stream(rs2.stream.accel,
-                                     rs2.format.motion_xyz32f, acc_framerate)
-            # Gyro config
-            imu_config.enable_stream(rs2.stream.gyro, rs2.format.motion_xyz32f,
+            self.imu_pipeline = rs.pipeline()
+            imu_config = rs.config()
+            # Accel and gyro config
+            imu_config.enable_stream(rs.stream.accel,
+                                     rs.format.motion_xyz32f, acc_framerate)
+            imu_config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f,
                                      gyro_framerate)
-            # Start IMU streaming with former config
             self.imu_pipeline.start(imu_config)
+
         """Set RGB camera config and start streaming it."""
         self.cam_pipeline = None
         if self.enable_rgb:
-            self.cam_pipeline = rs2.pipeline()
-            pipe_config = rs2.config()
-            pipe_config.enable_stream(rs2.stream.color, 1280, 800,
-                                      rs2.format.rgb8, cam_framerate)
-            # Start camera streaming with former config
+            self.cam_pipeline = rs.pipeline()
+            pipe_config = rs.config()
+            pipe_config.enable_stream(rs.stream.color, frame_width, frame_height,
+                                      rs.format.bgr8, cam_framerate)
             self.cam_pipeline.start(pipe_config)
 
-        time.sleep(5)  # Camera warm up
+        #time.sleep(5)
 
     def stop_pipeline(self):
         """Check the state of IMU/RGB camera and stop them 
@@ -93,15 +77,8 @@ class rs2stream(object):
         if self.cam_pipeline is not None:
             self.cam_pipeline.stop()
             self.cam_pipeline = None
-        """Main function for fetching IMU/RGB camera data, resizing the image 
-        if the setting in class object is different from default value, and convert
-        frame info to images using numpy array.
-        """
 
     def get_imu(self):
-        #t_last = self.t_frame
-        #self.t_frame = time.time() - self.t_init
-        #self.frames += 1
         try:
             if self.enable_imu:
                 imu_frames = self.imu_pipeline.wait_for_frames()
@@ -111,14 +88,14 @@ class rs2stream(object):
         # Get intertial measurements
         if self.enable_imu:
             accel = imu_frames.first_or_default(
-                rs2.stream.accel,
-                rs2.format.motion_xyz32f).as_motion_frame().get_motion_data()
+                rs.stream.accel,
+                rs.format.motion_xyz32f).as_motion_frame().get_motion_data()
             self.accel_x = accel.x
             self.accel_y = accel.y
             self.accel_z = accel.z
             gyro = imu_frames.first_or_default(
-                rs2.stream.gyro,
-                rs2.format.motion_xyz32f).as_motion_frame().get_motion_data()
+                rs.stream.gyro,
+                rs.format.motion_xyz32f).as_motion_frame().get_motion_data()
             self.gyro_x = gyro.x
             self.gyro_y = gyro.y
             self.gyro_z = gyro.z
@@ -135,16 +112,9 @@ class rs2stream(object):
         # Get visual measurements (RGB, 8-bit planar array)
         if self.enable_rgb:
             color_frame = image_frames.get_color_frame()
-            self.color_image = np.asanyarray(color_frame.get_data(),
-                                             dtype=np.uint8)
-            if self.resize:
-                if self.enable_rgb:
-                    self.color_image = cv2.resize(
-                        self.color_image,
-                        (self.frame_width, self.frame_height),
-                        cv2.INTER_NEAREST)
-                else:
-                    None
+            #self.color_image = np.asanyarray(color_frame.get_data(),
+                                             #dtype=np.uint8)
+            self.color_image = np.asanyarray(color_frame.get_data())
         # Get visual measurement timestamp
         #self.t_rgb = image_frames.get_timestamp() if self.enable_rgb else None
 
@@ -170,11 +140,5 @@ class rs2stream(object):
 
     def shutdown(self):
         """Camera shutdown by func stop_pipeline(). 
-        
-        Raises:
-           I'm not sure about the function of update() in the original code 
-           since I don't think Ed call it in his self test. I keep the 
-           bool enable_cam here and may use it and update() if necessary.
         """
-        #self.enable_cam = False
         self.stop_pipeline()
