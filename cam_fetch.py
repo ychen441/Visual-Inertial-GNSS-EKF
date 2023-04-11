@@ -7,7 +7,7 @@ Update date: 10/04/23 by ychen441
 import cv2
 import time
 import numpy as np
-from tryCam import rs2stream
+from cam_funcs import rs2stream
 
 # Buffers for unsynchronised spatial measurements
 acc_buffer = []
@@ -62,7 +62,7 @@ try:
             print("acc time:", t_unsync_acc[counter-1], file=f1)
         with open("gyro_readout.txt", 'a') as f2:
             print("gyro:", gyro_buffer[counter-1], file=f2)
-            print("gyro time:", t_unsync_gyro[counter-1], file=f2)       
+            print("gyro time:", t_unsync_gyro[counter-1], file=f2)      
         
         # Read RGB frames and save them
         color_img = cam.run_rgb()
