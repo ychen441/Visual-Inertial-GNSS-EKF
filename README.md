@@ -10,4 +10,5 @@ The filter will be tested on an agri-machinery for self-navigation and realising
 **04/04/23** Added functions to classOfuncs.py. Those were functions for converting coordinates or distances between geographical latitude-longitude representation and Cartesian x-y plane. Based on these new understandings, several changes should be made to filterpipes.py.<br /><br />
 **10/04/23** Fixed several errors in former files. The inertial part of filterpipes.py was tested using a raw data from [*@smahajan07*](https://github.com/smahajan07/sensor-fusion). The visualised result shows the filter's availability at present, it may still be modified in future real-time tests. On the other hand, TimeSync.py waits to be debugged and tested using pseudo inputs.<br /><br />
 **11/04/23** TimeSync.py debugged and tested. The module can be optimised by using ring buffers to store sensor inputs since the data before the synchronised point is useless for later computations.<br /><br />
-**14/04/23** Initially finished a really redundant ring buffer for TimeSync.
+**14/04/23** Initially finished a really redundant ring buffer for TimeSync.<br /><br />
+**18/04/23** Fixed some key issues in RingTimeSync.py and also formatted it. Test results looked good for now.
