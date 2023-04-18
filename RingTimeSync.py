@@ -479,33 +479,3 @@ print(sync)
 print(false_counter)
 print(pos_j_front, pos_j_back, pos_i)
 print(unsync_buffer.data, std_buffer.data)
-
-
-
-
-
-                
-
-
-
-
-
-
-
-            
-
-
-
-
-
-
-
-
-
-
-
-
-     
-            
-    
-
